@@ -16,8 +16,8 @@ MODEL_PATH = "hybrid_tcn_model.h5"
 SCALER_PATH = "scaler.pkl"
 CSV_FILE_PATH = "block_data.csv"
 BATCH_THRESHOLD = 100
-EPOCHS = 10
-BATCH_SIZE = 32
+EPOCHS = 50
+BATCH_SIZE = 16
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
