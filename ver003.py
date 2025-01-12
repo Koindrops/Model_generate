@@ -77,6 +77,9 @@ class TrainingManager:
 
     def save_training_state(self, epoch, logs=None):
         """Save current training state and metrics."""
+        # Convert float32 logs to Python float
+        logs = {key: float(value) for key, value in logs.items()} if logs else {}
+
         state = {
             "last_epoch": epoch,
             "logs": logs,
@@ -86,7 +89,7 @@ class TrainingManager:
         with open(state_path, "w") as f:
             json.dump(state, f)
         logging.info(f"Training state saved at epoch {epoch}")
-
+    
     def load_training_state(self):
         """Load previous training state if it exists."""
         state_path = os.path.join(self.logs_dir, "training_state.json")
