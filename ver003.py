@@ -176,14 +176,63 @@ class TrainingManager:
 
 def preprocess_data(file_path, sequence_length):
     """Fetch, preprocess, and generate features from the data."""
-    # Load data
+    # Load the dataset
     data = pd.read_csv(file_path)
+
+    # Ensure the required column exists
+    if "Last Numerical Digit" not in data.columns:
+        raise ValueError("The CSV file must contain the column 'Last Numerical Digit'.")
+
+    # Extract and preprocess the last numerical digits
     last_digits = data["Last Numerical Digit"].dropna().astype(int).values
 
-    # Compute transition and frequency features
-    # ... [Include other preprocessing logic from Code 1 here]
-    return preprocessed_data
+    # Normalize the digits to a range (0 to 1) using MinMaxScaler
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    last_digits = scaler.fit_transform(last_digits.reshape(-1, 1)).flatten()
 
+    # Generate sequences of the specified length
+    sequences = []
+    for i in range(len(last_digits) - sequence_length):
+        sequences.append(last_digits[i : i + sequence_length])
+    sequences = np.array(sequences)
+
+    # Compute transition features
+    transition_features = []
+    for sequence in sequences:
+        transitions = np.diff(sequence)
+        transition_features.append(transitions)
+    transition_features = np.array(transition_features)
+
+    # Compute frequency features (one-hot encoding for digit frequencies)
+    frequency_features = []
+    for sequence in sequences:
+        frequency = np.zeros(10)
+        for digit in sequence:
+            frequency[int(digit * 9)] += 1  # Map scaled digit to [0-9]
+        frequency_features.append(frequency / sequence_length)  # Normalize frequency
+    frequency_features = np.array(frequency_features)
+
+    # Generate one-hot encoded labels for the next digit in the sequence
+    labels = []
+    for i in range(sequence_length, len(last_digits)):
+        next_digit = int(last_digits[i] * 9)  # Map scaled digit to [0-9]
+        one_hot_label = to_categorical(next_digit, num_classes=10)
+        labels.append(one_hot_label)
+    labels = np.array(labels)
+
+    # Split data into training and validation sets
+    X_train, X_val, y_train, y_val = train_test_split(
+        sequences, labels, test_size=0.2, random_state=42, shuffle=True
+    )
+    trans_train, trans_val = train_test_split(transition_features, test_size=0.2, random_state=42)
+    freq_train, freq_val = train_test_split(frequency_features, test_size=0.2, random_state=42)
+
+    # Return processed data as a dictionary
+    return {
+        "train_data": (X_train, trans_train, freq_train, y_train),
+        "val_data": (X_val, trans_val, freq_val, y_val),
+        "scaler": scaler,  # Save the scaler for future use
+    }
 
 def main():
     manager = TrainingManager()
