@@ -10,17 +10,16 @@ from tensorflow.keras.callbacks import CSVLogger, ReduceLROnPlateau, EarlyStoppi
 from tensorflow.keras.optimizers import Adam
 from tcn import TCN
 
-# Modified Constants
-SEQUENCE_LENGTH = 24  # Reduced sequence length
+# Constants remain the same
+SEQUENCE_LENGTH = 24
 MODEL_PATH = "hybrid_tcn_model.h5"
 SCALER_PATH = "scaler.pkl"
 CSV_FILE_PATH = "block_data.csv"
 BATCH_THRESHOLD = 100
-EPOCHS = 100  # Increased epochs
-BATCH_SIZE = 32  # Increased batch size
-LEARNING_RATE = 0.001  # Increased learning rate
+EPOCHS = 100
+BATCH_SIZE = 32
+LEARNING_RATE = 0.001
 
-# Logging setup remains the same
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 def fetch_and_preprocess_data(file_path):
@@ -32,7 +31,6 @@ def fetch_and_preprocess_data(file_path):
                 raise ValueError(f"CSV file is missing required column: {col}.")
         
         last_digits = data["Last Numerical Digit"].dropna().astype(int).values
-        # Modified binary grouping strategy
         binary_digits = np.where(last_digits < 5, 0, 1)
         return last_digits, binary_digits
     except Exception as e:
@@ -41,28 +39,40 @@ def fetch_and_preprocess_data(file_path):
 
 def create_sequences(data, binary_data, sequence_length):
     sequences, labels = [], []
-    stride = 2  # Added stride for more diverse sequences
-    for i in range(0, len(data) - sequence_length, stride):
+    stride = 2
+    
+    # Adjust the range to ensure we don't go beyond array bounds
+    max_index = len(data) - sequence_length - 1
+    
+    for i in range(0, max_index, stride):
         sequences.append(binary_data[i:i + sequence_length])
         labels.append(binary_data[i + sequence_length])
+    
     return np.array(sequences), np.array(labels)
 
-def compute_markov_features(binary_data, sequence_length):
-    # Enhanced Markov features
+def compute_markov_features(binary_data, sequence_length, num_sequences):
+    """
+    Compute Markov features ensuring the output length matches the number of sequences
+    """
     transition_matrix = np.zeros((2, 2))
     for i in range(1, len(binary_data)):
         transition_matrix[binary_data[i - 1], binary_data[i]] += 1
     
-    # Smoothing to avoid division by zero
     transition_matrix += 0.1
     transition_matrix /= transition_matrix.sum(axis=1, keepdims=True)
     
     markov_features = []
-    window_size = 5  # Added rolling window
+    window_size = 5
+    stride = 2
     
-    for i in range(len(binary_data) - sequence_length):
+    # Use the same indexing as create_sequences
+    max_index = len(binary_data) - sequence_length - 1
+    
+    for i in range(0, max_index, stride):
+        if len(markov_features) >= num_sequences:
+            break
+            
         current_sequence = binary_data[i:i + sequence_length]
-        # Calculate multiple probability features
         short_term_prob = [transition_matrix[current_sequence[j], current_sequence[j + 1]] 
                           for j in range(len(current_sequence) - 1)]
         long_term_prob = [transition_matrix[current_sequence[max(0, j-window_size)], current_sequence[j]] 
@@ -79,10 +89,9 @@ def compute_markov_features(binary_data, sequence_length):
     return np.array(markov_features)
 
 def create_hybrid_tcn_model(sequence_length, markov_features_dim=4):
-    # Enhanced model architecture
+    # Model architecture remains the same
     sequence_input = Input(shape=(sequence_length, 1))
     
-    # Multiple TCN layers with residual connections
     tcn1 = TCN(128, activation="relu", return_sequences=True)(sequence_input)
     tcn1 = BatchNormalization()(tcn1)
     tcn1 = Dropout(0.3)(tcn1)
@@ -91,16 +100,13 @@ def create_hybrid_tcn_model(sequence_length, markov_features_dim=4):
     tcn2 = BatchNormalization()(tcn2)
     tcn2 = Dropout(0.3)(tcn2)
     
-    # Enhanced Markov features processing
     markov_input = Input(shape=(markov_features_dim,))
     markov_dense = Dense(32, activation="relu")(markov_input)
     markov_dense = BatchNormalization()(markov_dense)
     markov_dense = Dropout(0.2)(markov_dense)
     
-    # Combine features
     combined = Concatenate()([tcn2, markov_dense])
     
-    # Deep fully connected layers
     dense1 = Dense(64, activation="relu")(combined)
     dense1 = BatchNormalization()(dense1)
     dense1 = Dropout(0.3)(dense1)
@@ -112,8 +118,6 @@ def create_hybrid_tcn_model(sequence_length, markov_features_dim=4):
     output = Dense(1, activation="sigmoid")(dense2)
     
     model = Model(inputs=[sequence_input, markov_input], outputs=output)
-    
-    # Use AMSGrad optimizer variant
     optimizer = Adam(learning_rate=LEARNING_RATE, amsgrad=True)
     model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["accuracy"])
     
@@ -121,7 +125,7 @@ def create_hybrid_tcn_model(sequence_length, markov_features_dim=4):
 
 def train_and_save_hybrid_model():
     try:
-        # Data preparation remains similar
+        # Fetch and preprocess data
         last_digits, binary_digits = fetch_and_preprocess_data(CSV_FILE_PATH)
         scaler = MinMaxScaler(feature_range=(0, 1))
         scaled_data = scaler.fit_transform(last_digits.reshape(-1, 1))
@@ -129,12 +133,19 @@ def train_and_save_hybrid_model():
         with open(SCALER_PATH, "wb") as scaler_file:
             pickle.dump(scaler, scaler_file)
         
-        # Create sequences with enhanced features
+        # Create sequences first
         X, y = create_sequences(scaled_data.flatten(), binary_digits, SEQUENCE_LENGTH)
         X = X.reshape((X.shape[0], X.shape[1], 1))
-        markov_features = compute_markov_features(binary_digits, SEQUENCE_LENGTH)
         
-        # Stratified split to maintain class distribution
+        # Now create Markov features with matching length
+        markov_features = compute_markov_features(binary_digits, SEQUENCE_LENGTH, len(X))
+        
+        # Verify lengths match
+        logging.info(f"Sequence shape: {X.shape}, Markov features shape: {markov_features.shape}")
+        if len(X) != len(markov_features):
+            raise ValueError(f"Sequence length ({len(X)}) does not match Markov features length ({len(markov_features)})")
+        
+        # Split the data
         X_train, X_val, y_train, y_val = train_test_split(
             X, y, test_size=0.2, random_state=42, stratify=y
         )
@@ -142,10 +153,9 @@ def train_and_save_hybrid_model():
             markov_features, test_size=0.2, random_state=42, stratify=y
         )
         
-        # Create model with enhanced architecture
+        # Create and train model
         model = create_hybrid_tcn_model(SEQUENCE_LENGTH)
         
-        # Enhanced callbacks
         csv_logger = CSVLogger("training_log.csv", append=True)
         lr_scheduler = ReduceLROnPlateau(
             monitor="val_loss",
@@ -161,7 +171,7 @@ def train_and_save_hybrid_model():
             restore_best_weights=True
         )
         
-        # Train with class weights if necessary
+        # Calculate class weights if needed
         class_weights = None
         if np.mean(y_train) < 0.4 or np.mean(y_train) > 0.6:
             class_counts = np.bincount(y_train.astype(int))
