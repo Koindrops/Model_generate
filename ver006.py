@@ -147,7 +147,6 @@ class AdvancedPatternAnalyzer:
             next_value = sequence[i+order]
             self.markov_chain[(state, next_value)] += 1
     
-    # Normalize probabilities
     states = set(key[0] for key in self.markov_chain.keys())
     for state in states:
         total = sum(self.markov_chain[(state, v)] for v in [0, 1])
