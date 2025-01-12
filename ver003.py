@@ -240,11 +240,26 @@ def main():
         # Mount Google Drive
         manager.mount_drive()
 
-        # Preprocessing logic and model training from both scripts
-        pass
+        # Preprocess data
+        logging.info("Starting data preprocessing...")
+        processed_data = preprocess_data(CSV_FILE_PATH, SEQUENCE_LENGTH)
+        manager.save_data_state(processed_data)
+
+        # Load training and validation data
+        train_data = processed_data["train_data"]
+        val_data = processed_data["val_data"]
+
+        # Define the model
+        model = create_improved_hybrid_tcn_model(
+            sequence_length=SEQUENCE_LENGTH, n_features=1
+        )
+
+        # Train the model
+        logging.info("Starting model training...")
+        manager.train_model(model, train_data, val_data)
+
     except Exception as e:
         logging.error(f"Execution failed: {str(e)}")
-
 
 if __name__ == "__main__":
     main()
