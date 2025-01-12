@@ -145,15 +145,21 @@ class AdvancedPatternAnalyzer:
             for i in range(len(sequence) - order):
                 state = tuple(sequence[i:i+order])
                 next_value = sequence[i+order]
-                self.markov_chain[(state, next_value)] += 1
-    
+            
+                # Safely initialize the inner defaultdict
+                if next_value not in self.markov_chain[state]:
+                    self.markov_chain[state][next_value] = 0
+
+                self.markov_chain[state][next_value] += 1
+
+        # Normalize probabilities
         states = set(key[0] for key in self.markov_chain.keys())
         for state in states:
-            total = sum(self.markov_chain[(state, v)] for v in [0, 1])
+            total = sum(self.markov_chain[state][v] for v in [0, 1])
             if total > 0:
                 for v in [0, 1]:
-                    self.markov_chain[(state, v)] /= total
-
+                    self.markov_chain[state][v] /= total
+    
 class EnhancedEnsembleModel:
     def __init__(self, sequence_length=50):
         self.sequence_length = sequence_length
