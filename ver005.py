@@ -77,7 +77,7 @@ class EnhancedBlockPredictor:
                     # Chi-square test for independence
                     contingency_table = np.array([[stats['next_0'], stats['next_1']],
                                                 [stats['total']/2, stats['total']/2]])  # Expected uniform distribution
-                    chi2_stat, p_value = chi2_contingency(contingency_table)
+                    chi2_stat, p_value, _, _ = chi2_contingency(contingency_table)
                     
                     prob_0 = stats['next_0'] / stats['total']
                     prob_1 = stats['next_1'] / stats['total']
