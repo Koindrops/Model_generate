@@ -16,7 +16,7 @@ class AdvancedPatternAnalyzer:
         self.pattern_lengths = pattern_lengths
         self.pattern_stats = defaultdict(dict)
         self.significant_patterns = defaultdict(dict)
-        self.markov_chain = defaultdict(lambda: defaultdict(float))
+        self.markov_chain = defaultdict(lambda: defaultdict(int))
         self.scaler = StandardScaler()
         
     def extract_advanced_features(self, sequence):
