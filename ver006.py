@@ -140,20 +140,20 @@ class AdvancedPatternAnalyzer:
                         }
     
     def build_advanced_markov_chain(self, sequence, max_order=4):
-        """Build multi-order Markov chain with sophisticated transition tracking"""
-        for order in range(2, max_order + 1):
-            for i in range(len(sequence) - order):
-                state = tuple(sequence[i:i+order])
-                next_value = sequence[i+order]
-                self.markov_chain[(state, next_value)] += 1
-        
-        # Normalize probabilities
-        states = set(key[0] for key in self.markov_chain.keys())
-        for state in states:
-            total = sum(self.markov_chain[(state, v)] for v in [0, 1])
-            if total > 0:
-                for v in [0, 1]:
-                    self.markov_chain[(state, v)] /= total
+    """Build multi-order Markov chain with sophisticated transition tracking"""
+    for order in range(2, max_order + 1):
+        for i in range(len(sequence) - order):
+            state = tuple(sequence[i:i+order])
+            next_value = sequence[i+order]
+            self.markov_chain[(state, next_value)] += 1
+    
+    # Normalize probabilities
+    states = set(key[0] for key in self.markov_chain.keys())
+    for state in states:
+        total = sum(self.markov_chain[(state, v)] for v in [0, 1])
+        if total > 0:
+            for v in [0, 1]:
+                self.markov_chain[(state, v)] /= total
 
 class EnhancedEnsembleModel:
     def __init__(self, sequence_length=50):
