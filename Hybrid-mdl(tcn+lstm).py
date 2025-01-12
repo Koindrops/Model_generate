@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pickle
 import logging
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, Concatenate, Dropout, BatchNormalization, LSTM, Bidirectional
@@ -11,13 +11,13 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.regularizers import l1_l2
 from tcn import TCN
 
-SEQUENCE_LENGTH = 12  # Reduced sequence length for more recent patterns
+SEQUENCE_LENGTH = 12
 MODEL_PATH = "hybrid_tcn_model.h5"
 SCALER_PATH = "scaler.pkl"
 CSV_FILE_PATH = "block_data.csv"
 EPOCHS = 150
 BATCH_SIZE = 64
-LEARNING_RATE = 0.002  # Increased initial learning rate
+LEARNING_RATE = 0.002
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -78,23 +78,23 @@ def create_enhanced_model(sequence_length, seq_features_dim, advanced_features_d
     # Sequence input branch
     sequence_input = Input(shape=(sequence_length, 1))
     
-    # TCN pathway
-    tcn = TCN(128, activation='relu', return_sequences=True, 
-              kernel_regularizer=l1_l2(l1=1e-5, l2=1e-4))(sequence_input)
+    # TCN pathway - removed kernel_regularizer
+    tcn = TCN(128, activation='relu', return_sequences=True)(sequence_input)
     tcn = BatchNormalization()(tcn)
     tcn = Dropout(0.4)(tcn)
     
-    tcn = TCN(64, activation='relu',
-              kernel_regularizer=l1_l2(l1=1e-5, l2=1e-4))(tcn)
+    tcn = TCN(64, activation='relu')(tcn)
     tcn = BatchNormalization()(tcn)
     tcn = Dropout(0.4)(tcn)
     
     # LSTM pathway
-    lstm = Bidirectional(LSTM(64, return_sequences=True))(sequence_input)
+    lstm = Bidirectional(LSTM(64, return_sequences=True,
+                            kernel_regularizer=l1_l2(l1=1e-5, l2=1e-4)))(sequence_input)
     lstm = BatchNormalization()(lstm)
     lstm = Dropout(0.4)(lstm)
     
-    lstm = Bidirectional(LSTM(32))(lstm)
+    lstm = Bidirectional(LSTM(32,
+                            kernel_regularizer=l1_l2(l1=1e-5, l2=1e-4)))(lstm)
     lstm = BatchNormalization()(lstm)
     lstm = Dropout(0.4)(lstm)
     
@@ -150,11 +150,15 @@ def train_and_save_hybrid_model():
         scaled_data = scaler.fit_transform(last_digits.reshape(-1, 1))
         
         # Create sequences and features
+        logging.info("Creating sequences and features...")
         X, y, seq_features, advanced_features = create_sequences_with_features(
             scaled_data.flatten(), binary_digits, SEQUENCE_LENGTH)
         
         # Reshape X for CNN input
         X = X.reshape((X.shape[0], X.shape[1], 1))
+        
+        logging.info(f"Data shapes - X: {X.shape}, seq_features: {seq_features.shape}, "
+                    f"advanced_features: {advanced_features.shape}")
         
         # Split the data
         X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -162,6 +166,7 @@ def train_and_save_hybrid_model():
         adv_feat_train, adv_feat_val = train_test_split(advanced_features, test_size=0.2, random_state=42)
         
         # Create model
+        logging.info("Creating model...")
         model = create_enhanced_model(
             SEQUENCE_LENGTH,
             seq_features.shape[1],
@@ -194,6 +199,7 @@ def train_and_save_hybrid_model():
         ]
         
         # Train the model
+        logging.info("Starting model training...")
         history = model.fit(
             [X_train, seq_feat_train, adv_feat_train],
             y_train,
@@ -207,7 +213,10 @@ def train_and_save_hybrid_model():
         # Save the model and training history
         model.save(MODEL_PATH)
         with open('training_history.json', 'w') as f:
-            json.dump(history.history, f)
+            import json
+            history_serializable = {key: [float(value) for value in values] 
+                                 for key, values in history.history.items()}
+            json.dump(history_serializable, f)
         
         logging.info("Model training completed successfully")
         
