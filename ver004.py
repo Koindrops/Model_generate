@@ -209,7 +209,7 @@ def plot_training_history(train_losses, val_losses):
 
 def main():
     # Load and preprocess data
-    df, binary_sequence = load_and_preprocess_data('block_data.csv')
+    df, binary_sequence = load_and_preprocess_data('block_data_10000.csv')
     
     # Analyze patterns
     pattern_stats = analyze_patterns(binary_sequence)
