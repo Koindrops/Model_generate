@@ -126,7 +126,7 @@ def train_model(train_loader, val_loader, sequence_length=50, epochs=100):
     
     criterion = nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    scheduler = torch.optim.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
     
     best_val_loss = float('inf')
     patience = 10
