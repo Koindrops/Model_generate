@@ -234,6 +234,52 @@ def preprocess_data(file_path, sequence_length):
         "scaler": scaler,  # Save the scaler for future use
     }
 
+def create_improved_hybrid_tcn_model(sequence_length, n_features):
+    """
+    Define an improved hybrid TCN model for sequence prediction.
+
+    Args:
+        sequence_length (int): Length of input sequences.
+        n_features (int): Number of input features.
+
+    Returns:
+        tf.keras.Model: The compiled hybrid TCN model.
+    """
+    # Input layers for sequences, transition features, and frequency features
+    sequence_input = Input(shape=(sequence_length, n_features), name="sequence_input")
+    transition_input = Input(shape=(sequence_length - 1,), name="transition_input")
+    frequency_input = Input(shape=(10,), name="frequency_input")  # 10 classes for digits 0-9
+
+    # Temporal Convolutional Network (TCN) for sequence input
+    tcn_output = TCN(nb_filters=64, kernel_size=3, nb_stacks=1, activation="relu", dropout_rate=0.2)(sequence_input)
+
+    # Dense layers for transition features
+    transition_dense = Dense(64, activation="relu")(transition_input)
+    transition_dense = Dropout(0.2)(transition_dense)
+
+    # Dense layers for frequency features
+    frequency_dense = Dense(32, activation="relu")(frequency_input)
+    frequency_dense = Dropout(0.2)(frequency_dense)
+
+    # Concatenate TCN output and dense layers
+    combined = Concatenate()([tcn_output, transition_dense, frequency_dense])
+
+    # Fully connected layers for prediction
+    fc = Dense(128, activation="relu")(combined)
+    fc = BatchNormalization()(fc)
+    fc = Dropout(0.2)(fc)
+    fc = Dense(64, activation="relu")(fc)
+    fc = Dropout(0.2)(fc)
+
+    # Output layer
+    output = Dense(NUM_CLASSES, activation="softmax", name="output")(fc)
+
+    # Define and compile the model
+    model = Model(inputs=[sequence_input, transition_input, frequency_input], outputs=output)
+    model.compile(optimizer=Adam(learning_rate=LEARNING_RATE), loss="categorical_crossentropy", metrics=["accuracy"])
+
+    return model
+
 def main():
     manager = TrainingManager()
     try:
