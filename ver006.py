@@ -16,7 +16,8 @@ class AdvancedPatternAnalyzer:
         self.pattern_lengths = pattern_lengths
         self.pattern_stats = defaultdict(dict)
         self.significant_patterns = defaultdict(dict)
-        self.markov_chain = defaultdict(lambda: defaultdict(int))
+        # Fix: Initialize markov_chain with float values
+        self.markov_chain = defaultdict(float)
         self.scaler = StandardScaler()
         
     def extract_advanced_features(self, sequence):
@@ -74,8 +75,10 @@ class AdvancedPatternAnalyzer:
     
     def _calculate_autocorrelation(self, sequence, lag=1):
         """Calculate autocorrelation at given lag"""
+        if len(sequence) <= lag:
+            return 0
         series = pd.Series(sequence)
-        return series.autocorr(lag=lag)
+        return series.autocorr(lag=lag) if not pd.isna(series.autocorr(lag=lag)) else 0
     
     def _count_runs(self, sequence):
         """Analyze runs in the sequence"""
@@ -90,6 +93,9 @@ class AdvancedPatternAnalyzer:
                 current_run = 1
         runs.append(current_run)
         
+        if not runs:
+            return {'max_run_length': 1, 'avg_run_length': 1, 'run_count': 1}
+            
         return {
             'max_run_length': max(runs),
             'avg_run_length': np.mean(runs),
@@ -99,7 +105,7 @@ class AdvancedPatternAnalyzer:
     def _calculate_trend_strength(self, sequence):
         """Calculate the strength of trend in the sequence"""
         diffs = np.diff(sequence)
-        return np.abs(np.mean(diffs))
+        return np.abs(np.mean(diffs)) if len(diffs) > 0 else 0
     
     def analyze_patterns(self, sequence):
         """Enhanced pattern analysis with comprehensive statistical testing"""
@@ -116,7 +122,9 @@ class AdvancedPatternAnalyzer:
                     patterns[pattern]['next_1'] += 1
             
             total_patterns = sum(stats['total'] for stats in patterns.values())
-            
+            if total_patterns == 0:
+                continue
+                
             for pattern, stats in patterns.items():
                 if stats['total'] >= 20:  # Reduced minimum sample size
                     contingency_table = np.array([[stats['next_0'], stats['next_1']],
@@ -141,25 +149,24 @@ class AdvancedPatternAnalyzer:
     
     def build_advanced_markov_chain(self, sequence, max_order=4):
         """Build multi-order Markov chain with sophisticated transition tracking"""
+        # Initialize temporary counting dictionary
+        count_dict = defaultdict(int)
+        
+        # Count transitions
         for order in range(2, max_order + 1):
             for i in range(len(sequence) - order):
                 state = tuple(sequence[i:i+order])
                 next_value = sequence[i+order]
-            
-                # Safely initialize the inner defaultdict
-                if next_value not in self.markov_chain[state]:
-                    self.markov_chain[state][next_value] = 0
-
-                self.markov_chain[state][next_value] += 1
-
-        # Normalize probabilities
-        states = set(key[0] for key in self.markov_chain.keys())
+                count_dict[(state, next_value)] += 1
+        
+        # Calculate probabilities
+        states = set(key[0] for key in count_dict.keys())
         for state in states:
-            total = sum(self.markov_chain[state][v] for v in [0, 1])
+            total = sum(count_dict[(state, v)] for v in [0, 1])
             if total > 0:
                 for v in [0, 1]:
-                    self.markov_chain[state][v] /= total
-    
+                    self.markov_chain[(state, v)] = count_dict[(state, v)] / total
+
 class EnhancedEnsembleModel:
     def __init__(self, sequence_length=50):
         self.sequence_length = sequence_length
@@ -200,6 +207,7 @@ class EnhancedEnsembleModel:
                 learning_rate=0.01
             )
         }
+        self.model_weights = None
         
     def prepare_advanced_data(self, sequence):
         """Prepare enhanced feature set for training"""
@@ -212,7 +220,8 @@ class EnhancedEnsembleModel:
             y.append(sequence[i+self.sequence_length])
             
         X = np.array(X)
-        X = self.scaler.fit_transform(X)  # Scale features
+        if len(X) > 0:  # Check if we have any features
+            X = self.scaler.fit_transform(X)  # Scale features
         return X, np.array(y)
     
     def fit(self, sequence):
@@ -224,6 +233,9 @@ class EnhancedEnsembleModel:
         # Prepare training data with advanced features
         X, y = self.prepare_advanced_data(sequence)
         
+        if len(X) == 0:  # Check if we have enough data
+            raise ValueError("Not enough data to train the model")
+        
         # Split data for stacking
         X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
         
@@ -234,8 +246,7 @@ class EnhancedEnsembleModel:
             model_predictions[name] = model.predict_proba(X_val)[:, 1]
         
         # Calculate optimal weights based on validation performance
-        weights = self._calculate_optimal_weights(model_predictions, y_val)
-        self.model_weights = weights
+        self.model_weights = self._calculate_optimal_weights(model_predictions, y_val)
         
         # Retrain on full dataset
         for name, model in self.models.items():
@@ -276,6 +287,10 @@ class EnhancedEnsembleModel:
         markov_prob = self.pattern_analyzer.markov_chain.get((last_state, 1), 0.5)
         predictions.append(markov_prob)
         weights.append(0.2)  # Fixed weight for Markov prediction
+        
+        # Normalize weights
+        weights = np.array(weights)
+        weights = weights / np.sum(weights)
         
         # Weighted average of predictions
         final_prob = np.average(predictions, weights=weights)
