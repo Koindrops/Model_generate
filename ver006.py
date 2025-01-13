@@ -342,4 +342,4 @@ def train_and_evaluate(file_path, test_size=0.2):
     return model
 
 if __name__ == "__main__":
-    model = train_and_evaluate('block_data.csv')
+    model = train_and_evaluate('block_data_10000.csv')
